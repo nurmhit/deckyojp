@@ -2,114 +2,100 @@ import {
   ButtonItem,
   PanelSection,
   PanelSectionRow,
+  TextField,
   Navigation,
-  staticClasses
+  staticClasses,
 } from "@decky/ui";
+import { definePlugin, routerHook, toaster } from "@decky/api";
+import { useEffect, useState } from "react";
+import { FaLanguage } from "react-icons/fa";
+
 import {
-  addEventListener,
-  removeEventListener,
-  callable,
-  definePlugin,
-  toaster,
-  // routerHook
-} from "@decky/api"
-import { useState } from "react";
-import { FaShip } from "react-icons/fa";
+  analyzeLatest,
+  getSettings,
+  setScreenshotDir,
+  setCurrentAnalysis,
+} from "./api";
+import Reader from "./Reader";
 
-// import logo from "../assets/logo.png";
-
-// This function calls the python function "add", which takes in two numbers and returns their sum (as a number)
-// Note the type annotations:
-//  the first one: [first: number, second: number] is for the arguments
-//  the second one: number is for the return value
-const add = callable<[first: number, second: number], number>("add");
-
-// This function calls the python function "start_timer", which takes in no arguments and returns nothing.
-// It starts a (python) timer which eventually emits the event 'timer_event'
-const startTimer = callable<[], void>("start_timer");
+const READER_ROUTE = "/deckyojp/reader";
 
 function Content() {
-  const [result, setResult] = useState<number | undefined>();
+  const [folder, setFolder] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string>("");
 
-  const onClick = async () => {
-    const result = await add(Math.random(), Math.random());
-    setResult(result);
+  useEffect(() => {
+    getSettings().then((s) => setFolder(s.screenshot_dir ?? "")).catch(() => {});
+  }, []);
+
+  const onAnalyze = async () => {
+    setBusy(true);
+    setStatus("Analyzing… (first run loads the OCR model)");
+    try {
+      const res = await analyzeLatest();
+      if (res.error) {
+        setStatus(res.error);
+        toaster.toast({ title: "deckyojp", body: res.error });
+        return;
+      }
+      setCurrentAnalysis(res);
+      setStatus(`Found ${res.lines.length} line(s)`);
+      Navigation.Navigate(READER_ROUTE);
+      Navigation.CloseSideMenus();
+    } catch (e) {
+      setStatus(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onSaveFolder = async () => {
+    const s = await setScreenshotDir(folder);
+    setFolder(s.screenshot_dir);
+    setStatus(`Screenshot folder set to ${s.screenshot_dir}`);
   };
 
   return (
-    <PanelSection title="Panel Section">
+    <PanelSection title="Japanese OCR">
       <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={onClick}
-        >
-          {result ?? "Add two numbers via Python"}
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={() => startTimer()}
-        >
-          {"Start Python timer"}
+        <ButtonItem layout="below" disabled={busy} onClick={onAnalyze}>
+          {busy ? "Analyzing…" : "Analyze latest screenshot"}
         </ButtonItem>
       </PanelSectionRow>
 
-      {/* <PanelSectionRow>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <img src={logo} />
-        </div>
-      </PanelSectionRow> */}
+      {status && (
+        <PanelSectionRow>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>{status}</div>
+        </PanelSectionRow>
+      )}
 
-      {/*<PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={() => {
-            Navigation.Navigate("/decky-plugin-test");
-            Navigation.CloseSideMenus();
-          }}
-        >
-          Router
+      <PanelSectionRow>
+        <TextField
+          label="Screenshot folder"
+          value={folder}
+          onChange={(e) => setFolder(e.target.value)}
+        />
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={onSaveFolder}>
+          Save folder
         </ButtonItem>
-      </PanelSectionRow>*/}
+      </PanelSectionRow>
     </PanelSection>
   );
-};
+}
 
 export default definePlugin(() => {
-  console.log("Template plugin initializing, this is called once on frontend startup")
-
-  // serverApi.routerHook.addRoute("/decky-plugin-test", DeckyPluginRouterTest, {
-  //   exact: true,
-  // });
-
-  // Add an event listener to the "timer_event" event from the backend
-  const listener = addEventListener<[
-    test1: string,
-    test2: boolean,
-    test3: number
-  ]>("timer_event", (test1, test2, test3) => {
-    console.log("Template got timer_event with:", test1, test2, test3)
-    toaster.toast({
-      title: "template got timer_event",
-      body: `${test1}, ${test2}, ${test3}`
-    });
-  });
+  routerHook.addRoute(READER_ROUTE, Reader, { exact: true });
 
   return {
-    // The name shown in various decky menus
-    name: "Test Plugin",
-    // The element displayed at the top of your plugin's menu
-    titleView: <div className={staticClasses.Title}>Decky Example Plugin</div>,
-    // The content of your plugin's menu
+    name: "deckyojp",
+    titleView: <div className={staticClasses.Title}>Japanese OCR</div>,
     content: <Content />,
-    // The icon displayed in the plugin list
-    icon: <FaShip />,
-    // The function triggered when your plugin unloads
+    icon: <FaLanguage />,
     onDismount() {
-      console.log("Unloading")
-      removeEventListener("timer_event", listener);
-      // serverApi.routerHook.removeRoute("/decky-plugin-test");
+      routerHook.removeRoute(READER_ROUTE);
     },
   };
 });

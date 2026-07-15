@@ -46,6 +46,10 @@ yalc.lock
 
 backend/out
 
+# Vendored python deps (built into py_modules by build-plugin.sh --deps)
+py_modules/*
+!py_modules/.keep
+
 # Make sure to ignore any instance of the loader's decky_plugin.py
 decky_plugin.py
 

@@ -1,0 +1,18 @@
+# OCR pipeline (ONNX text detection + recognition, horizontal & vertical JP)
+meikiocr==0.3.4
+onnxruntime==1.27.0
+opencv-python-headless==5.0.0.93
+# numpy 2.5.x requires Python >=3.12; Decky's bundled interpreter is 3.11, so
+# pin to the latest numpy that still ships cp311 wheels (2.4.x, same 2.x ABI).
+numpy==2.4.6
+
+# Tokenisation / segmentation
+Janome==0.5.0
+
+# JMdict dictionary lookup (jamdict-data ships the SQLite DB — required for
+# lookups to return anything)
+jamdict==0.1a11.post2
+jamdict-data==1.5
+# jamdict imports lxml, falling back to stdlib xml.etree — but Decky's frozen
+# Python 3.11 ships a trimmed stdlib WITHOUT xml.etree, so lxml must be vendored.
+lxml==5.3.0
